@@ -1,0 +1,30 @@
+#executor: slurm
+#jobs: 100
+executor: cluster-generic
+cluster-generic-submit-cmd:
+  mkdir -p logs/{rule} &&
+  sbatch
+    --partition={resources.partition}
+    --cpus-per-task={threads}
+    --mem={resources.mem_mb}
+    --output=logs/{rule}/{rule}-{wildcards}-%j.out
+    --time={resources.time}
+default-resources:
+  - mem_mb=4096
+  - cpus_per_task=1
+  - time="01:30:00"
+  - partition="genoa"
+#singularity:
+#  - enabled=true
+#  args: "--bind $(pwd):$(pwd)"
+#  prefix: /gpfs/work2/0/brugada/not_gabriel/singularity_cache
+restart-times: 3
+max-jobs-per-second: 10
+max-status-checks-per-second: 1
+local-cores: 1
+latency-wait: 60
+jobs: 500
+keep-going: True
+rerun-incomplete: True
+printshellcmds: True
+scheduler: greedy
