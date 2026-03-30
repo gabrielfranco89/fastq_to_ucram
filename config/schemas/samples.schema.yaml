@@ -4,22 +4,13 @@ properties:
   sample:
     type: string
     description: sample name/identifier
-  condition:
-    type: string
-    description: sample condition that will be compared during differential analysis
-  replicate:
-    type: integer
-    default: 1
-    description: consecutive numbers representing multiple replicates of one condition
   read1:
     type: string
-    description: names of fastq.gz files, read 1
+    description: path to FASTQ file (R1 for paired-end, or the single-end file)
   read2:
     type: string
-    description: names of fastq.gz files, read 2 (optional)
+    description: path to FASTQ file (R2, paired-end only; leave blank for single-end)
 
 required:
   - sample
-  - condition
-  - replicate
   - read1

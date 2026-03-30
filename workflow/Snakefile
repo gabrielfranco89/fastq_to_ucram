@@ -3,10 +3,6 @@
 # https://snakemake.readthedocs.io/en/stable/snakefiles/best_practices.html,
 # in particular regarding the standardized folder structure mentioned there.
 
-# contraint names for snellius execution
-wildcard_constraints:
-    chr="chr[0-9XYM]{1,2}",
-    SM="[A-Za-z0-9_-]+"
 
 # load configuration
 # -----------------------------------------------------
@@ -36,6 +32,9 @@ onerror:
 # target rules
 # -----------------------------------------------------
 rule all:
-    input:
-        "results/multiqc/multiqc_report.html",
     default_target: True
+    input:
+        expand(
+            "results/verify/{sample}_roundtrip.txt",
+            sample=samples.index,
+        ),
