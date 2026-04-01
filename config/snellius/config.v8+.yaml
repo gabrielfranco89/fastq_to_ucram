@@ -1,30 +1,136 @@
-#executor: slurm
+executor: slurm
 #jobs: 100
-executor: cluster-generic
-cluster-generic-submit-cmd:
-  mkdir -p logs/{rule} &&
-  sbatch
-    --partition={resources.partition}
-    --cpus-per-task={threads}
-    --mem={resources.mem_mb}
-    --output=logs/{rule}/{rule}-{wildcards}-%j.out
-    --time={resources.time}
+#slurm_account: guc17675
+
 default-resources:
-  - mem_mb=4096
+  - mem_mb=1048
   - cpus_per_task=1
-  - time="01:30:00"
-  - partition="genoa"
+  - runtime=45
+  - partition="rome"
 #singularity:
 #  - enabled=true
 #  args: "--bind $(pwd):$(pwd)"
 #  prefix: /gpfs/work2/0/brugada/not_gabriel/singularity_cache
-restart-times: 3
+restart-times: 2
 max-jobs-per-second: 10
 max-status-checks-per-second: 1
 local-cores: 1
-latency-wait: 60
-jobs: 500
+latency-wait: 5
 keep-going: True
 rerun-incomplete: True
 printshellcmds: True
+slurm-efficiency-report: True
 scheduler: greedy
+
+partitions:
+  genoa:
+    max_runtime: "5-00:00:00"
+    max_mem_mb: 336000
+    max_cpus_per_task: 192
+    available_constraints: "scratch-node"
+    cluster: "core"
+
+  rome:
+    max_runtime: "5-00:00:00"
+    max_mem_mb: 224000
+    max_cpus_per_task: 128
+    available_constraints: "scratch-node"
+    cluster: "core"
+
+  fat_rome:
+    max_runtime: "5-00:00:00"
+    max_mem_mb: 960000
+    max_cpus_per_task: 128
+    available_constraints: "scratch-node"
+    cluster: "fat"
+
+  fat_genoa:
+    max_runtime: "5-00:00:00"
+    max_mem_mb: 1440000
+    max_cpus_per_task: 192
+    available_constraints: "scratch-node"
+    cluster: "fat"
+
+  staging:
+    max_runtime: "5-00:00:00"
+    max_mem_mb: 224000
+    max_cpus_per_task: 16
+    available_constraints: "scratch-node"
+    cluster: "small"
+
+## Pipeline specific configuration ===================================
+group-components:
+  fastq_to_ucram: 12 # 1/2 genoa
+  ucram_to_fastq: 12
+  merge_split_fastq: 32
+  create_tsv_merged_fastq: 32
+  verify_roundtrip: 32
+  fastqc: 24 # 1/2 genoa
+  checksum_input: 32
+  checksum_restored: 32
+
+## Set the rule's threads
+set-threads:
+  fastq_to_ucram: 1
+  ucram_to_fastq: 16
+  merge_split_fastq: 1
+  create_tsv_merged_fastq: 1
+  verify_roundtrip: 1
+  fastqc: 4
+  multiqc: 2
+  checksum_input: 1
+  checksum_restored: 1
+  verify_roundtrip: 1
+
+## Set the resources to be asked to slurm.
+##    Keep the threads redundancy!
+set-resources:
+  merge_split_fastq:
+    slurm-jobname-prefix: "merge_split_fastq"
+    runtime: 30
+    cpus_per_task: 1
+    mem_mb: 8000
+    slurm_partition: "rome"
+  create_tsv_merged_fastq:
+    slurm-jobname-prefix: "create_tsv_merged_fastq"
+    runtime: 30
+    cpus_per_task: 1
+    mem_mb: 8000
+    slurm_partition: "rome"
+  fastq_to_ucram:
+    slurm-jobname-prefix: "fastq_to_ucram"
+    runtime: 120
+    cpus_per_task: 1
+    slurm_partition: "genoa"
+  checksum_input:
+    slurm-jobname-prefix: "checksum_input"
+    runtime: 30
+    cpus_per_task: 1
+    slurm_partition: "rome"
+  checksum_restored:
+    slurm-jobname-prefix: "checksum_restored"
+    runtime: 30
+    cpus_per_task: 1
+    slurm_partition: "rome"
+  ucram_to_fastq:
+    slurm-jobname-prefix: "ucram_to_fastq"
+    runtime: 120
+    cpus_per_task: 16
+    slurm_partition: "genoa"
+  verify_roundtrip:
+    slurm-jobname-prefix: "verify_roundtrip"
+    runtime: 60
+    cpus_per_task: 1
+    slurm_partition: "rome"
+  fastqc:
+    slurm-jobname-prefix: "fastqc"
+    runtime: 45
+    cpus_per_task: 4
+    mem_mb: 8000
+    slurm_partition: "genoa" 
+  multiqc:
+    slurm-jobname-prefix: "multiqc"
+    runtime: 30
+    cpus_per_task: 2
+    mem_mb: 8000
+    slurm_partition: "rome"

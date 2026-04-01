@@ -1,112 +1,174 @@
-# ----------------------------------------------------- #
-# EXAMPLE WORKFLOW                                      #
-# ----------------------------------------------------- #
+####################################################################
+# FASTQ -> uCRAM -> Fastq
+####################################################################
 
-
-# fetch genome sequence from NCBI
-# -----------------------------------------------------
-rule get_genome:
-    output:
-        fasta="results/get_genome/genome.fna",
-    conda:
-        "../envs/get_genome.yaml"
-    message:
-        """--- Downloading genome sequence."""
-    params:
-        ncbi_ftp=lookup(within=config, dpath="get_genome/ncbi_ftp"),
-    log:
-        "results/get_genome/genome.log",
-    shell:
-        "wget -O results/get_genome/genome.fna.gz {params.ncbi_ftp} > {log} 2>&1 && "
-        "gunzip results/get_genome/genome.fna.gz >> {log} 2>&1"
-
-
-# validate genome sequence file
-# -----------------------------------------------------
-rule validate_genome:
+## Check if the fastq's are already merged
+rule merge_split_fastq:
     input:
-        fasta=rules.get_genome.output.fasta,
+        unpack(get_all_fastq_for_sample),
     output:
-        fasta="results/validate_genome/genome.fna",
-    conda:
-        "../envs/validate_genome.yaml"
-    message:
-        """--- Validating genome sequence file."""
+        read1="{outdir}/merged_fastq/{sample}_R1.fastq.gz",
+        read2="{outdir}/merged_fastq/{sample}_R2.fastq.gz",
+        tsv_piece=temp(
+            "{outdir}/merged_fastq/{sample}_fastq_paths.tsv"
+        )
     log:
-        "results/validate_genome/genome.log",
+        "{outdir}/merged_fastq/{sample}.log",
+    group: "merge_split_fastq"
+    shell:
+        """
+        echo "Merging R1 files for {wildcards.sample}" > {log}
+        cat {input.read1} > {output.read1} 2>> {log}
+        
+        echo "Merging R2 files for {wildcards.sample}" >> {log}
+        cat {input.read2} > {output.read2} 2>> {log}
+
+        # Save the paths to the merged files for downstream rules
+        echo -e "{wildcards.sample}\t{output.read1}\t{output.read2}" > {output.tsv_piece}
+        """
+
+rule create_tsv_merged_fastq:
+    input:
+        tsv=expand(
+            "{outdir}/merged_fastq/{sample}_fastq_paths.tsv",
+            sample=samples.index.unique().tolist(),
+            outdir=config["outdir"]
+        ),
+    output:
+        "{outdir}/samplesheet/updated_fastq_paths.tsv",
+    shell:
+        """
+        echo -e "sample\tread1\tread2" > {output}
+        cat {input.tsv} | sort -u >> {output}
+
+        """
+
+
+# Compute content-based checksums for input FASTQ files
+# -----------------------------------------------------
+def get_checksum_resources(wildcards, attempt):
+    basemem=16000
+    return basemem + (8000*(attempt+1))
+
+rule checksum_input:
+    input:        
+        #unpack(get_fastq_updated),
+        #"{outdir}/samplesheet/updated_fastq_paths.tsv",
+        read1="{outdir}/merged_fastq/{sample}_R1.fastq.gz",
+        read2="{outdir}/merged_fastq/{sample}_R2.fastq.gz",
+    output:
+        "{outdir}/checksums/{sample}.input.json",
+    log:
+        "{outdir}/logs/checksum/{sample}.input.log",
+    conda:
+        "../envs/samtools.yaml"
+    resources:
+        mem_mb=get_checksum_resources
+    group: "checksum_input"
+    message:
+        """--- Computing checksums for input FASTQ: {wildcards.sample}"""
     script:
-        "../scripts/validate_fasta.py"
+        "../scripts/checksum_fastq.py"
 
 
-# simulate read data using DWGSIM
+def get_mem_resources(wildcards, attempt):
+    basemem=32000
+    return basemem + (8000*(attempt+1))
+
+# Convert FASTQ files to unaligned CRAM (uCRAM) format
 # -----------------------------------------------------
-rule simulate_reads:
+rule fastq_to_ucram:
     input:
-        fasta=rules.validate_genome.output.fasta,
+        read1="{outdir}/merged_fastq/{sample}_R1.fastq.gz",
+        read2="{outdir}/merged_fastq/{sample}_R2.fastq.gz",
     output:
-        multiext(
-            "results/simulate_reads/{sample}",
-            read1=".bwa.read1.fastq.gz",
-            read2=".bwa.read2.fastq.gz",
-        ),
+        ucram="{outdir}/ucram/{sample}.ucram",
+    log:
+        "{outdir}/logs/fastq_to_ucram/{sample}.log",
     conda:
-        "../envs/simulate_reads.yaml"
+        "../envs/samtools.yaml"
+    group: "fastq_to_ucram"
     message:
-        """--- Simulating read data with DWGSIM."""
-    params:
-        output_type=1,
-        read_length=lookup(within=config, dpath="simulate_reads/read_length"),
-        read_number=lookup(within=config, dpath="simulate_reads/read_number"),
+        """--- Converting FASTQ to uCRAM: {wildcards.sample}"""
+    resources:
+        mem_mb=get_mem_resources
+    run:
+        if "read2" in dict(input):
+            shell(
+                "samtools import "
+                "-1 {input.read1} -2 {input.read2} "
+                "-O cram,no_ref=1,version=3.0 "
+                "-o {output.ucram} "
+                "2> {log}"
+            )
+        else:
+            shell(
+                "samtools import "
+                "-0 {input.read1} "
+                "-O cram,no_ref=1,version=3.0 "
+                "-o {output.ucram} "
+                "2> {log}"
+            )
+
+rule ucram_to_fastq:
+    input:
+        ucram=rules.fastq_to_ucram.output.ucram,
+    output:
+        read1="{outdir}/restored_fastq/{sample}_R1.fastq.gz",
+        read2="{outdir}/restored_fastq/{sample}_R2.fastq.gz",
     log:
-        "results/simulate_reads/{sample}.log",
+        "{outdir}/logs/ucram_to_fastq/{sample}.log",
+    conda:
+        "../envs/samtools.yaml"
+    message:
+        """--- Converting uCRAM back to FASTQ: {wildcards.sample}"""
+    group: "ucram_to_fastq"
+    resources:
+        mem_mb=get_mem_resources
     shell:
-        "output_prefix=`echo {output.read1} | cut -f 1 -d .`;"
-        "dwgsim "
-        " -1 {params.read_length}"
-        " -2 {params.read_length}"
-        " -N {params.read_number}"
-        " -o {params.output_type}"
-        " {input.fasta}"
-        " ${{output_prefix}}"
-        " > {log} 2>&1"
+        """
+        samtools fastq \
+        -1 {output.read1} -2 {output.read2} \
+        -0 /dev/null -s /dev/null \
+        --threads {threads} \
+        -N {input.ucram} \
+        2> {log}
+        """
 
-
-# make QC report
-# -----------------------------------------------------
-rule fastqc:
+rule checksum_restored:
     input:
-        fastq="results/simulate_reads/{sample}.bwa.{read}.fastq.gz",
+        read1="{outdir}/restored_fastq/{sample}_R1.fastq.gz",
+        read2="{outdir}/restored_fastq/{sample}_R2.fastq.gz",
     output:
-        html="results/fastqc/{sample}.bwa.{read}_fastqc.html",
-        zip="results/fastqc/{sample}.bwa.{read}_fastqc.zip",
-    params:
-        extra="--quiet",
-    message:
-        """--- Checking fastq files with FastQC."""
+        "{outdir}/checksums/{sample}.restored.json",
     log:
-        "results/fastqc/{sample}.bwa.{read}.log",
-    threads: 1
-    wrapper:
-        "v6.0.0/bio/fastqc"
+        "{outdir}/logs/checksum/{sample}.restored.log",
+    conda:
+        "../envs/samtools.yaml"
+    group: "checksum_restored"
+    message:
+        """--- Computing checksums for restored FASTQ: {wildcards.sample}"""
+    resources:
+        mem_mb=get_checksum_resources
+    script:
+        "../scripts/checksum_fastq.py"
 
+    
 
-# run multiQC on tool output
-# -----------------------------------------------------
-rule multiqc:
+rule verify_roundtrip:
     input:
-        expand(
-            "results/fastqc/{sample}.bwa.{read}_fastqc.{ext}",
-            sample=samples.index,
-            read=["read1", "read2"],
-            ext=["html", "zip"],
-        ),
+        input_checksums="{outdir}/checksums/{sample}.input.json",
+        restored_checksums="{outdir}/checksums/{sample}.restored.json",
+        ucram=rules.fastq_to_ucram.output.ucram,
     output:
-        report="results/multiqc/multiqc_report.html",
-    params:
-        extra="--verbose --dirs",
-    message:
-        """--- Generating MultiQC report for seq data."""
+        report="{outdir}/verify/{sample}_roundtrip.txt",
     log:
-        "results/multiqc/multiqc.log",
-    wrapper:
-        "v6.0.0/bio/multiqc"
+        "{outdir}/logs/verify/{sample}.log",
+    conda:
+        "../envs/samtools.yaml"
+    group: "verify_roundtrip"
+    message:
+        """--- Verifying round-trip integrity: {wildcards.sample}"""
+    script:
+        "../scripts/verify_roundtrip.py"
+    

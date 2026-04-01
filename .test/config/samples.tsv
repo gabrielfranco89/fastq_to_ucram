@@ -1,3 +1,7 @@
-sample	condition	replicate	read1	read2
-sample1	wild_type	1	sample1.bwa.read1.fastq.gz	sample1.bwa.read2.fastq.gz
-sample2	wild_type	2	sample2.bwa.read1.fastq.gz	sample2.bwa.read2.fastq.gz
+sample	group	lane	replicate	read1	read2
+NA24694	GCCAAT	L001	001	/projects/brugada/data/NIST_GenomeInABottle/HG006/NA24694_GCCAAT_L001_R1_001.fastq.gz	/projects/brugada/data/NIST_GenomeInABottle/HG006/NA24694_GCCAAT_L001_R2_001.fastq.gz
+NA24694	GCCAAT	L001	002	/projects/brugada/data/NIST_GenomeInABottle/HG006/NA24694_GCCAAT_L001_R1_002.fastq.gz	/projects/brugada/data/NIST_GenomeInABottle/HG006/NA24694_GCCAAT_L001_R2_002.fastq.gz
+NA24694	GCCAAT	L001	003	/projects/brugada/data/NIST_GenomeInABottle/HG006/NA24694_GCCAAT_L001_R1_003.fastq.gz	/projects/brugada/data/NIST_GenomeInABottle/HG006/NA24694_GCCAAT_L001_R2_003.fastq.gz
+5A1	S5	L001	001	/projects/brugada/data/NIST_GenomeInABottle/HG005/5A1_S5_L001_R1_001.fastq.gz	/projects/brugada/data/NIST_GenomeInABottle/HG005/5A1_S5_L001_R2_001.fastq.gz
+5A1	S5	L002	001	/projects/brugada/data/NIST_GenomeInABottle/HG005/5A1_S5_L002_R1_001.fastq.gz	/projects/brugada/data/NIST_GenomeInABottle/HG005/5A1_S5_L002_R2_001.fastq.gz
+5A2	S6	L001	001	/projects/brugada/data/NIST_GenomeInABottle/HG005/5A2_S6_L001_R1_001.fastq.gz	/projects/brugada/data/NIST_GenomeInABottle/HG005/5A2_S6_L001_R2_001.fastq.gz

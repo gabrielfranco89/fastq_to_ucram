@@ -4,7 +4,10 @@ properties:
   sample:
     type: string
     description: sample name/identifier
-  condition:
+  group:
+    type: string
+    description: Any other grouping
+  lane:
     type: string
     description: sample condition that will be compared during differential analysis
   replicate:
@@ -20,6 +23,4 @@ properties:
 
 required:
   - sample
-  - condition
-  - replicate
   - read1
